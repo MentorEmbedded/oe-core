@@ -38,7 +38,9 @@ if [ "$py_v26_check" != "True" ]; then
 fi
 
 needtar="1"
+needgit="1"
 TARVERSION=`tar --version | head -n 1 | cut -d ' ' -f 4`
+GITVERSION=`git --version | cut -d ' ' -f 3`
 float_test() {
      echo | awk 'END { exit ( !( '"$1"')); }'
 }
@@ -51,6 +53,10 @@ if [ "`pwd`" != "$BUILDDIR" ] ; then
     echo "BitBake must be run from your build directory: $BUILDDIR"
     exit 1
 fi
+
+# Need git >= 1.7.5 for git-remote --mirror=xxx syntax
+float_test "$GITVERSION >= 1.7.5" && needgit="0"
+
 
 buildpseudo="1"
 if [ $needpseudo = "1" ] && [ -e "$BUILDDIR/pseudodone" ]; then
@@ -65,6 +71,10 @@ fi
 if [ $needpseudo = "0" ]; then
     buildpseudo="0"
 fi
+# If git is already built, we don't want to do it again...
+if [ -e "$PSEUDOBINDIR/git" -a "$needgit" = "1" ]; then
+    needgit="0"
+fi
 
 OLDPATH=$PATH
 export PATH=`echo $PATH | sed s#[^:]*/scripts:##`
@@ -75,6 +85,11 @@ if [ $buildpseudo = "1" ]; then
     if [ $needtar = "0" ]; then
         TARTARGET=""
     fi
+    GITTARGET="git-replacement-native"
+    if [ $needgit = "0" ]; then
+        GITTARGET=""
+    fi
+
     # Pass through debug options
     additionalopts=""
     for opt in $@; do
@@ -86,7 +101,7 @@ if [ $buildpseudo = "1" ]; then
             fi
         done
     done
-    bitbake pseudo-native $TARTARGET $additionalopts -c populate_sysroot
+    bitbake pseudo-native $TARTARGET $GITTARGET $additionalopts -c populate_sysroot
     ret=$?
     if [ "$ret" != "0" ]; then
         exit 1
